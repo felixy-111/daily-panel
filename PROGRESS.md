@@ -18,7 +18,7 @@ Constraints decided 2026-11-16 02:35:
 - [x] 5. collector/cloud_collector.py (email coach via GitHub raw/api, Notion read + Value fallback) + tests
 - [x] 6. supabase/functions/notion-writeback/index.ts (+ deno test of pure parts)
 - [x] 7. .github/workflows/collect.yml (every 15 min) + collector/com.felix.habit-collector.plist (NOT loaded)
-- [ ] 8. privacy check (grep private words in tracked files), create repo, push, enable Pages
+- [x] 8. privacy check (grep private words in tracked files), create repo, push, enable Pages
 - [ ] 9. verifier pass; dev log 開發紀錄/habits/
 
 ## Needs Taiyi (awake)
@@ -28,6 +28,7 @@ Constraints decided 2026-11-16 02:35:
 - GitHub secrets: NOTION_TOKEN, SUPABASE_SERVICE_KEY, GH_TOKEN (fine-grained PAT, Contents:read on private felixy-111/daily-english-email)
 - launchctl bootstrap the plist
 - Install PWA on phone, login test
+- After secrets are set: `gh workflow enable collect.yml -R felixy-111/daily-panel` (disabled to avoid failure emails every 15 min)
 
 ## Log
 - 2026-11-16 step 1: 6 feature files (today/checkin/notion/collectors/privacy/heatmap), ids only, trend chart tagged @later.
@@ -37,3 +38,4 @@ Constraints decided 2026-11-16 02:35:
 - 2026-11-16 step 7: collect.yml (*/15, py3.12, secrets SUPABASE_SERVICE_KEY/NOTION_TOKEN/GH_TOKEN) + plist (plutil OK, NOT loaded).
 - 2026-11-16 step 6: notion-writeback index.ts+lib.ts (+index.single.ts bundle, DEPLOY.md zh-TW); `deno test lib_test.ts` 7 passed, deno check OK; full flow (done/re-check/backfill/undo/re-done/timeout 502/401/400) run against local mock Supabase+Notion OK. Not deployed; real Notion untested. Occurrences read via paginated property endpoint (page object truncates relations at 25).
 - 2026-11-16 step 3: index.html + sw.js (daily-panel-v1, only deletes daily-panel-* caches) + manifest + 3 PNG icons. Verified in Playwright @360x640: clean load → login only, no JS errors; with mocked Supabase: 9 cells fit without scroll, toggle/value/cancel/offline queue/write-back 404 → 「Notion 未同步」/banner names unreachable habits/history heatmap/logout clears cache. Real login untested.
+- 2026-11-16 step 8: privacy grep clean (only DEPLOY.md mentions `ntn_` prefix as instructions); repo felixy-111/daily-panel public, Pages live https://felixy-111.github.io/daily-panel/ (200, no private words); collect workflow disabled until secrets exist.
