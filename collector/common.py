@@ -107,11 +107,13 @@ class Supabase:
     def upsert_logs(self, rows):
         self.upsert("habit_logs", rows, "log_date,habit_id,source")
 
-    def upsert_status(self, source, now, error=None, extra=None):
+    def upsert_status(self, source, now, error=None, extra=None, success=None):
+        """success defaults to error is None; pass True for a partial failure (run worked,
+        some items unreachable) so freshness still advances."""
         row = {"source": source, "last_attempt_at": utc_iso(now),
                "message": "OK" if error is None else "ERROR: " + error,
                "extra": extra or {}}
-        if error is None:
+        if (error is None) if success is None else success:
             row["last_success_at"] = utc_iso(now)
         self.upsert("habit_source_status", [row], "source")
 

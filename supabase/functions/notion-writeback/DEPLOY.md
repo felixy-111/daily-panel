@@ -54,11 +54,19 @@ cd ~/projects/felix_agent/habits/dashboard/supabase/functions/notion-writeback
 deno test lib_test.ts
 { echo "// GENERATED single-file bundle of index.ts + lib.ts for the Supabase dashboard editor."; \
   echo "// Regenerate after editing either file (see DEPLOY.md). Do not edit by hand."; \
-  grep -v '^import { corsHeaders' index.ts; echo; echo "// ---- lib.ts ----"; cat lib.ts; } > index.single.ts
+  sed '/^import {$/,/^} from "\.\/lib\.ts";$/d' index.ts; echo; echo "// ---- lib.ts ----"; cat lib.ts; } > index.single.ts
 deno check index.single.ts
 ```
 
 ## 已知限制
 
-- 補打昨天的勾：Notion 紀錄頁上的「完成時間」會是「現在」（今天），不是昨天。面板自己的紀錄日期是對的，收集程式也會跳過面板已經記過的紀錄頁，所以不會重複計算。
-- 如果 Notion 超過 20 秒才產生紀錄頁，面板會收到 502；這時 Notion 那邊其實可能已經打勾了。再按一次可能會在 Notion 多出一筆紀錄頁（少見，手動刪掉即可）。
+- **補打昨天的勾（Notion 那邊沒有昨天的紀錄頁時）：不會動 Notion**，只記在面板。原因：這時候叫 Notion 打勾，紀錄頁的完成時間會是「今天」，還會把下次日期再往後推一天，等於把今天的進度弄亂。回應會是 `{ok:true, skipped:"backfill"}`，面板不會顯示「Notion 未同步」。
+  - 如果 Notion 裡**已經有**昨天的紀錄頁（例如昨天在 Notion 勾過），面板會直接認領那一頁（把數值寫上去），不會再產生新的。
+- **防重複**：打勾前會先看這個任務最近 5 筆紀錄頁，只要已經有一筆的完成時間落在同一天（凌晨 4 點換日），就直接認領那一頁，不會再叫 Notion 打勾一次。所以「先在 Notion 勾、再到面板填數字」或「上次逾時、再按一次」都不會多出紀錄頁。
+  - 假設：Notion 把新的紀錄頁接在 Occurrences 清單最後面（跟偵測新紀錄頁用的是同一個假設）。若實際順序相反，防重複會失效，要回報。
+- 如果原任務目前狀態已經是 Done（Notion 自動化還沒把它重設），不會再設一次 Done，只會等新的紀錄頁出現。若自動化根本沒在跑，會一直 502（面板顯示「Notion 未同步」）。
+- 如果 Notion 超過 20 秒才產生紀錄頁，面板會收到 502；面板稍後重試時會認領那張晚到的紀錄頁，不會再多一張。
+- 取消打勾只會把「面板這次自己叫 Notion 產生」的那張紀錄頁丟進垃圾桶；任務的下次日期不會倒退。
+  - **認領來的紀錄頁不會被記住**：不論是你在 Notion 勾的，還是面板上次逾時、這次才認領到的晚到紀錄頁，都一律當成「在 Notion 勾過」處理（回應帶 `adopted:true`）。在面板取消打勾**不會**刪掉它，格子會維持完成並顯示「Notion 已勾選」；要取消請到 Notion 把那筆取消勾選／刪掉。原因：分不出那張是不是你親手在 Notion 勾的，寧可不刪。
+- 這支程式只會更新面板那一列的 `source_ref`（記住對應哪張 Notion 紀錄頁），不會改打勾狀態或數值——那些由手機端決定，避免慢回應蓋掉你後來的取消。
+- 資料庫裡的 `source_ref` 只有在「格式是 Notion 頁面 id」而且「確實是這個任務自己的紀錄頁」時才會被使用，其他一律當作沒有。

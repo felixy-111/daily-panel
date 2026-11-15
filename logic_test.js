@@ -232,3 +232,26 @@ Deno.test("habit listed in notion extra.unreachable → unknown even if notion r
 Deno.test("fresh explicit done=false auto row → none", () => {
   eq(mergeDay([row("anki", false, 0)], DEF.anki, ctx({ anki: { last_success_at: ago(10) } })).state, "none");
 });
+Deno.test("one unreachable notion page: only that habit unknown, others normal", () => {
+  const st = { notion: { last_success_at: ago(5), message: "ERROR: b1 unreachable", extra: { unreachable: ["b1"] } } };
+  eq(mergeDay([], DEF.b1, ctx(st)).state, "unknown");
+  for (const h of ["b2", "b3", "m1", "m2"]) eq(mergeDay([], DEF[h], ctx(st)).state, "none", h);
+  eq(mergeDay([row("notion", true)], DEF.b2, ctx(st)).state, "done");
+  // still fresh 2 hours later as long as runs keep succeeding (staleness = last_success_at only)
+  const later = { notion: { ...st.notion, last_success_at: ago(10) } };
+  eq(mergeDay([], DEF.m1, { status: later, now: NOW, date: TODAY }).state, "none");
+});
+Deno.test("heatmap: unreachable habit hatched only today/yesterday, other notion habits never", () => {
+  const st = { notion: { last_success_at: ago(5), message: "ERROR: b1 unreachable", extra: { unreachable: ["b1"] } } };
+  const rows = heatmapCells([], [DEF.b1, DEF.b2], TODAY, 12, { status: st, now: NOW });
+  const b1 = rows[0].weeks.flat().filter(Boolean);
+  eq(b1.filter((c) => c.state === "unknown").map((c) => c.date), ["2026-11-20", "2026-11-21"]);
+  eq(rows[1].weeks.flat().filter((c) => c && c.state === "unknown").length, 0);
+});
+Deno.test("unreachable + collector down 3 days: older days unknown like reachable habits", () => {
+  const st = { notion: { last_success_at: ago(3 * 1440), message: "ERROR: b1 unreachable", extra: { unreachable: ["b1"] } } };
+  const rows = heatmapCells([], [DEF.b1, DEF.b2], TODAY, 12, { status: st, now: NOW });
+  const unknownDays = (r) => r.weeks.flat().filter((c) => c && c.state === "unknown").map((c) => c.date);
+  eq(unknownDays(rows[0]), ["2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21"]);
+  eq(unknownDays(rows[0]), unknownDays(rows[1]));
+});

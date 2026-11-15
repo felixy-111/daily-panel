@@ -181,7 +181,7 @@
 import * as L from "./logic.js";
 
 // Must match CACHE in sw.js
-const APP_VERSION = "daily-panel-v1";
+const APP_VERSION = "daily-panel-v2";
 const SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js";
 const CONFIG = { SUPABASE_URL: "https://ewynrebniwbptsnpnjyd.supabase.co", SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3eW5yZWJuaXdicHRzbnBuanlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NzkzNjIsImV4cCI6MjA5OTA1NTM2Mn0.zydrT-q4xwx1lCr0KpaWlZ2z9H0ulf1CuFHsYfY82a0" };
 const RESET_REDIRECT = "https://felixy-111.github.io/daily-panel/";
@@ -248,11 +248,12 @@ function renderToday() {
     const k = key(date, def.habit_id);
     const unit = def.unit || "";
     let main = "";
+    const showValue = s.value !== null && !(s.state === "done" && s.value === 0);
     if (s.state === "unknown") {
       main = s.lastSuccess ? `未知・最後更新 ${L.fmtHM(s.lastSuccess)}` : "未知";
-    } else if (s.value !== null && def.target != null && Number(def.target) > 1) {
+    } else if (showValue && def.target != null && Number(def.target) > 1) {
       main = `${s.value}<small>/${esc(def.target)}</small>`;
-    } else if (s.value !== null && Number(def.target) !== 1) {
+    } else if (showValue && Number(def.target) !== 1) {
       main = `${s.value}<small> ${esc(unit)}</small>`;
     } else if (s.state === "done") {
       main = "✓";
@@ -380,27 +381,42 @@ async function flush() {
 }
 
 // Notion write-back never blocks a check-in; failures stay queued and show 「Notion 未同步」.
-let wbRunning = false;
+// One runner at a time, so write-backs for the same habit+date never overlap. A newer intent
+// queued while one is in flight replaces it in wbQueue and runs on the next pass (latest wins).
+let wbRunning = false, wbAgain = false;
 async function flushWriteback() {
-  if (wbRunning || !wbQueue.length || !sb || !navigator.onLine) return;
+  if (wbRunning) { wbAgain = true; return; }
+  if (!wbQueue.length || !sb || !navigator.onLine) return;
   wbRunning = true;
   try {
-    const { data: { session } } = await sb.auth.getSession();
-    if (!session) return;
-    for (const it of [...wbQueue]) {
-      try {
-        const res = await fetch(WRITEBACK_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token, apikey: CONFIG.SUPABASE_ANON_KEY },
-          body: JSON.stringify({ habit_id: it.habit_id, log_date: it.log_date, done: it.done, value: it.value }),
-        });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        wbQueue = L.queueDrop(wbQueue, it);
-        lsSet(LS.wb, wbQueue);
-      } catch (e) {
-        console.warn("notion write-back pending:", it.habit_id, (e && e.message) || e);
+    do {
+      wbAgain = false;
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return;
+      const oldest = L.addDays(L.logicalDay(new Date()), -1);
+      for (const it of [...wbQueue]) {
+        const cur = wbQueue.find((q) => key(q.log_date, q.habit_id) === key(it.log_date, it.habit_id));
+        if (!cur || cur.updated_at !== it.updated_at) { wbAgain = true; continue; } // superseded: next pass
+        if (it.log_date < oldest) { // the function only accepts today/yesterday
+          wbQueue = L.queueDrop(wbQueue, it); lsSet(LS.wb, wbQueue);
+          continue;
+        }
+        try {
+          const res = await fetch(WRITEBACK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token, apikey: CONFIG.SUPABASE_ANON_KEY },
+            body: JSON.stringify({ habit_id: it.habit_id, log_date: it.log_date, done: it.done, value: it.value }),
+          });
+          // 400 bad request / 403 not the owner: retrying can't help. 404 (not deployed yet) and 5xx retry.
+          if (res.status === 400 || res.status === 403) console.warn("notion write-back rejected, dropped:", res.status, it.habit_id, it.log_date);
+          else if (!res.ok) throw new Error("HTTP " + res.status);
+          wbQueue = L.queueDrop(wbQueue, it);
+          lsSet(LS.wb, wbQueue);
+        } catch (e) {
+          console.warn("notion write-back pending:", it.habit_id, (e && e.message) || e);
+        }
       }
-    }
+    } while (wbAgain && navigator.onLine);
   } finally {
     wbRunning = false;
     render();
@@ -584,8 +600,8 @@ async function doForgot() {
 async function doLogout() {
   if (sb) await sb.auth.signOut();
   loggedIn = false;
-  defs = []; logs = []; statusRows = [];
-  lsDel(LS.cache);
+  defs = []; logs = []; statusRows = []; queue = []; wbQueue = [];
+  lsDel(LS.cache); lsDel(LS.queue); lsDel(LS.wb);
   showLogin();
 }
 

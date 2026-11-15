@@ -145,6 +145,18 @@ class NotionTest(unittest.TestCase):
         self.assertEqual(status["extra"]["unreachable"], ["b2", "m1"])
         self.assertEqual([r["habit_id"] for r in rows], ["b1"])
         self.assertEqual(failures, 0)
+        self.assertEqual(status["last_success_at"], common.utc_iso(NOW))  # partial failure stays fresh
+
+    def test_one_unreachable_page_keeps_other_habits_flowing(self):
+        pages = [history(hid_id(1), [ORIG["b2"]], "2026-11-21T09:00:00.000+08:00"),
+                 history(hid_id(2), [ORIG["m1"]], "2026-11-20T21:00:00.000+08:00")]
+        failures, rows, status = NotionWorld(pages, unreachable=["b1"]).run()
+        self.assertEqual(failures, 0)
+        self.assertEqual(status["message"], "ERROR: b1 unreachable")
+        self.assertEqual(status["extra"]["unreachable"], ["b1"])
+        self.assertEqual(status["last_success_at"], common.utc_iso(NOW))
+        self.assertEqual(sorted((r["log_date"], r["habit_id"]) for r in rows),
+                         [("2026-11-20", "m1"), ("2026-11-21", "b2")])
 
     def test_trashed_history_marks_existing_row_not_done(self):
         existing = [{"log_date": "2026-11-20", "habit_id": "b1", "source_ref": hid_id(8), "done": True},
@@ -170,6 +182,7 @@ class NotionTest(unittest.TestCase):
         failures, rows, status = world.run()
         self.assertEqual(failures, 1)
         self.assertEqual(status["message"], "ERROR: HTTP 401")
+        self.assertNotIn("last_success_at", status)
 
     def test_rerun_idempotent(self):
         pages = [history(hid_id(1), [ORIG["b1"]], "2026-11-21T09:00:00.000+08:00", value=3)]

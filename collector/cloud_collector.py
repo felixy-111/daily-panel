@@ -3,6 +3,8 @@
 
 Actions logs are public: print counts and habit ids only, never names or page content.
 Any source raising -> ERROR status written, then the job exits non-zero.
+A source that returns an error (e.g. some Notion pages unreachable) is a partial failure:
+ERROR message, but last_success_at still advances.
 """
 import os
 import sys
@@ -183,11 +185,12 @@ def run(db, now=None, sources=SOURCES):
     for name, fn in sources:
         try:
             rows, extra, error = fn(db, now)
+            ran = True
         except Exception as e:
             failures += 1
-            rows, extra, error = [], {}, common.error_text(e)
+            rows, extra, error, ran = [], {}, common.error_text(e), False
         try:
-            db.upsert_status(name, now, error, extra)
+            db.upsert_status(name, now, error, extra, success=ran)
         except Exception as e:
             failures += 1
             print(f"{name}: status write failed ({common.error_text(e)})")

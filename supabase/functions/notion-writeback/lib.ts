@@ -37,8 +37,8 @@ export function validateRequest(body: unknown, now: Date = new Date()): Validati
   }
   if (typeof b.done !== "boolean") return { ok: false, error: "done must be boolean" };
   const value = b.value === undefined ? null : b.value;
-  if (value !== null && (typeof value !== "number" || !Number.isFinite(value))) {
-    return { ok: false, error: "value must be a number or null" };
+  if (value !== null && (typeof value !== "number" || !Number.isFinite(value) || value < 0)) {
+    return { ok: false, error: "value must be a non-negative number or null" };
   }
   const today = logicalDay(now);
   if (b.log_date !== today && b.log_date !== addDays(today, -1)) {
@@ -49,6 +49,74 @@ export function validateRequest(body: unknown, now: Date = new Date()): Validati
 
 export function normId(id: string): string {
   return id.replace(/-/g, "").toLowerCase();
+}
+
+// A Notion page id we are willing to put into a URL: 32 hex digits, either bare or in
+// 8-4-4-4-12 form. Returns the bare lowercase form, or null for anything else
+// (path traversal, query strings, other separators, wrong length).
+export function canonicalPageId(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  if (!/^[0-9a-fA-F]{32}$/.test(raw) &&
+      !/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(raw)) {
+    return null;
+  }
+  return normId(raw);
+}
+
+// habit_logs.source_ref is owner-writable, so it is only trusted when it is a canonical id
+// AND one of the whitelisted original task's Occurrences (fetched from Notion server-side).
+export function trustedRef(raw: unknown, occurrences: string[]): string | null {
+  const id = canonicalPageId(raw);
+  if (!id) return null;
+  return occurrences.some((o) => canonicalPageId(o) === id) ? id : null;
+}
+
+// Logical day of a Notion `Completed` date (ISO datetime with offset, or a bare date).
+export function completedDay(start: string | null | undefined): string | null {
+  if (!start) return null;
+  if (!start.includes("T")) return /^\d{4}-\d{2}-\d{2}$/.test(start) ? start : null;
+  const t = Date.parse(start);
+  return isNaN(t) ? null : logicalDay(new Date(t));
+}
+
+export interface HistorySummary {
+  id: string;
+  completed: string | null; // Completed.date.start
+  live: boolean; // false when in_trash / archived / 404
+}
+
+// The history page that already records `logDate`, if any: live and completed on that
+// logical day. Prefers `preferId` (the stored source_ref), else the latest Completed.
+export function pickExistingForDay(
+  pages: HistorySummary[], logDate: string, preferId: string | null = null,
+): string | null {
+  const hits = pages.filter((p) => p.live && completedDay(p.completed) === logDate);
+  if (!hits.length) return null;
+  if (preferId) {
+    const pref = hits.find((p) => normId(p.id) === normId(preferId));
+    if (pref) return pref.id;
+  }
+  hits.sort((a, b) => Date.parse(a.completed!) - Date.parse(b.completed!));
+  return hits[hits.length - 1].id;
+}
+
+// Occurrences the adopt check looks at: the newest few (Notion appends new relations at
+// the end — the same assumption pickNewOccurrence makes), plus the stored ref, minus the
+// original itself. Ids are already canonical.
+export function adoptCandidates(occurrences: string[], originalId: string, ref: string | null, n = 5): string[] {
+  const orig = normId(originalId);
+  const out: string[] = [];
+  for (const id of [...(ref ? [ref] : []), ...occurrences.slice(-n).reverse()]) {
+    if (normId(id) !== orig && !out.some((o) => normId(o) === normId(id))) out.push(id);
+  }
+  return out;
+}
+
+// Which page an adopted (pre-existing) history page lets the panel row remember.
+// Only the already-trusted stored ref survives; any other pre-existing page may be one
+// the user ticked in Notion, and panel undo must never trash that.
+export function adoptedRefToStore(existing: string, ref: string | null): string | null {
+  return ref && normId(existing) === normId(ref) ? ref : null;
 }
 
 // The history page Notion created = an id in `after` that wasn't in `before`.

@@ -113,7 +113,10 @@ export function mergeDay(rows, def, ctx = {}) {
     const unreachable = !!(st && st.extra && Array.isArray(st.extra.unreachable) && st.extra.unreachable.includes(def.habit_id));
     const stale = unreachable || isStale(st, src, ctx.now);
     const lastOk = st && st.last_success_at ? new Date(st.last_success_at) : null;
-    const dayUnchecked = !lastOk || lastOk < dayEnd(ctx.date);
+    // An unreachable page's habit is always unknown for the editable days (today/yesterday,
+    // the only days the collector reads); earlier days follow the usual last-success rule.
+    const dayUnchecked = (unreachable && ctx.date >= addDays(logicalDay(ctx.now), -1)) ||
+      !lastOk || lastOk < dayEnd(ctx.date);
     const eligible = src === "notion" ? !panel : true;
     if (stale && dayUnchecked && eligible) state = "unknown";
   }
