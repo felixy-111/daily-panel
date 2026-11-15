@@ -1,0 +1,7 @@
+{"started_on": "2026-11-17", "current_day": 3, "used_scenario_ids": [], "streak_current": 99,
+ "streak_longest": 99, "last_practiced_date": "2026-11-20", "weak_point_counts": {},
+ "sessions": [
+  {"date": "2026-11-17", "scenario_id": "s1", "scores": {}, "weak_points": [], "pron_score": null},
+  {"date": "2026-11-20", "scenario_id": "s2", "scores": {}, "weak_points": [], "pron_score": null},
+  {"date": "2026-11-20", "scenario_id": "s3", "scores": {}, "weak_points": [], "pron_score": null}
+ ]}

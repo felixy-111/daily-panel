@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>每日面板</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1F3A5F">
+<style>
+  :root{
+    --bg:#F4F7FB; --card:#FFFFFF; --text:#1B2430; --muted:#6B7785; --line:#DCE3EC;
+    --done:#1F3A5F; --done-text:#FFFFFF; --partial:#B8CDEB; --partial-text:#1B2430;
+    --unknown:#C9CFD6; --none:#EEF2F7; --accent:#4A7BC8; --red:#C0392B; --green:#2E8B57;
+    --cat-english:#4A7BC8; --cat-mind:#8E6CC0; --cat-body:#2E9D6A;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0F141A; --card:#18202A; --text:#E6EDF5; --muted:#8C99A8; --line:#2A3542;
+      --done:#4A7BC8; --done-text:#FFFFFF; --partial:#2C4466; --partial-text:#E6EDF5;
+      --unknown:#3A4552; --none:#1F2833; --accent:#7FA6E0; --red:#E05A4A; --green:#4CB97A;
+    }
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;
+    -webkit-tap-highlight-color:transparent;}
+  [hidden]{display:none !important;}
+  button{font:inherit; color:inherit; cursor:pointer;}
+
+  /* login */
+  #login{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;}
+  .login-card{max-width:340px; width:100%; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:24px 20px;}
+  .login-card h1{margin:0 0 16px; text-align:center; font-size:22px; letter-spacing:2px;}
+  label{display:block; font-size:13px; color:var(--muted); margin:10px 0 4px;}
+  input{width:100%; padding:11px 12px; font-size:16px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--text);}
+  .btn{display:block; width:100%; margin-top:16px; padding:12px; border:none; border-radius:10px; background:var(--done); color:var(--done-text); font-weight:600;}
+  .link{display:block; margin:12px auto 0; background:none; border:none; color:var(--accent); font-size:13px; font-weight:600;}
+  .err{color:var(--red); font-size:13px; min-height:18px; margin:8px 0 0; text-align:center;}
+
+  /* app shell */
+  #app{max-width:520px; margin:0 auto; padding:10px 12px 64px;}
+  .top{display:flex; align-items:center; gap:8px;}
+  .seg{display:flex; background:var(--none); border-radius:10px; padding:3px;}
+  .seg button{border:none; background:none; padding:7px 14px; border-radius:8px; font-size:15px; color:var(--muted);}
+  .seg button.on{background:var(--card); color:var(--text); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.08);}
+  .sync{margin-left:auto; font-size:12px; color:var(--muted); white-space:nowrap;}
+  .sync.pending{color:var(--red); font-weight:600;}
+  #banner{margin:10px 0 0; padding:9px 12px; border-radius:10px; background:var(--red); color:#fff; font-size:13px;}
+  .dayrow{display:flex; align-items:center; gap:8px; margin:12px 0 10px;}
+  .dayrow .seg button{padding:6px 12px; font-size:14px;}
+  .datelabel{font-size:14px; color:var(--muted);}
+
+  /* today grid */
+  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+  .cell{position:relative; min-height:118px; border-radius:12px; border:1px solid var(--line); background:var(--card);
+    padding:9px 8px 8px; text-align:left; display:flex; flex-direction:column; gap:3px; overflow:hidden;}
+  .cell::before{content:""; position:absolute; left:0; top:0; right:0; height:3px; background:var(--cat);}
+  .cell[data-cat="english"]{--cat:var(--cat-english);}
+  .cell[data-cat="mind"]{--cat:var(--cat-mind);}
+  .cell[data-cat="body"]{--cat:var(--cat-body);}
+  .cell .name{font-size:13px; font-weight:600; line-height:1.25; word-break:break-all;}
+  .cell .main{font-size:22px; font-weight:700; line-height:1.1; margin-top:auto;}
+  .cell .main small{font-size:12px; font-weight:500;}
+  .cell .sub{font-size:11px; color:var(--muted);}
+  .cell.done{background:var(--done); color:var(--done-text); border-color:var(--done);}
+  .cell.done .sub{color:inherit; opacity:.8;}
+  .cell.partial{background:var(--partial); color:var(--partial-text);}
+  .cell.unknown{background:repeating-linear-gradient(135deg,var(--card) 0 6px,var(--unknown) 6px 8px); color:var(--muted);}
+  .cell.unknown .main{font-size:13px; font-weight:600;}
+  .tags{display:flex; flex-wrap:wrap; gap:3px;}
+  .tag{font-size:10px; line-height:1; padding:3px 5px; border-radius:6px; background:rgba(127,127,127,.18);}
+  .tag.warn{background:var(--red); color:#fff;}
+  .cell.editing{outline:3px solid var(--accent); outline-offset:1px;}
+
+  /* inline value editor */
+  #editor{margin-top:10px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px;}
+  #editor .row{display:flex; align-items:center; gap:8px;}
+  #editor input{flex:1; font-size:20px;}
+  #editor .unit{font-size:15px; color:var(--muted); min-width:2em;}
+  #editor .btns{display:flex; gap:8px; margin-top:10px;}
+  #editor .btns button{flex:1; padding:11px; border-radius:10px; border:1px solid var(--line); background:var(--none);}
+  #editor .btns .primary{background:var(--done); color:var(--done-text); border-color:var(--done); font-weight:600;}
+  #editor .btns .danger{color:var(--red);}
+  #edErr{color:var(--red); font-size:12px; min-height:14px; margin-top:4px;}
+
+  /* history heatmap */
+  .hm-row{display:flex; align-items:center; gap:8px; margin:0 0 10px;}
+  .hm-name{width:84px; flex:none; font-size:12px; line-height:1.25; word-break:break-all;}
+  .hm{display:grid; grid-template-rows:repeat(7,12px); grid-auto-flow:column; grid-auto-columns:12px; gap:2px;}
+  .hm i{display:block; width:12px; height:12px; border-radius:2px; background:var(--none);}
+  .hm i.done{background:var(--done);}
+  .hm i.partial{background:var(--partial);}
+  .hm i.unknown{background:repeating-linear-gradient(135deg,var(--none) 0 2px,var(--unknown) 2px 4px);}
+  .hm i.empty{background:transparent;}
+  .legend{display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin:4px 0 14px;}
+  .legend span{display:flex; align-items:center; gap:4px;}
+  .legend .hm i{display:inline-block;}
+
+  .corner{position:fixed; right:10px; bottom:8px; font-size:11px; color:var(--muted); display:flex; gap:10px; align-items:center;}
+  .corner button{background:none; border:none; color:var(--muted); font-size:11px; padding:0; text-decoration:underline;}
+</style>
+</head>
+<body>
+
+<div id="login" hidden>
+  <div class="login-card">
+    <h1>每日面板</h1>
+    <div id="loginBox">
+      <label for="loginEmail">Email</label>
+      <input id="loginEmail" type="email" autocomplete="username">
+      <label for="loginPw">密碼</label>
+      <input id="loginPw" type="password" autocomplete="current-password">
+      <button id="loginBtn" class="btn">登入</button>
+      <button id="forgotBtn" class="link" type="button">忘記密碼？</button>
+    </div>
+    <div id="recoverBox" hidden>
+      <label for="newPw">新密碼</label>
+      <input id="newPw" type="password" autocomplete="new-password" placeholder="至少 6 個字">
+      <label for="newPw2">再輸入一次</label>
+      <input id="newPw2" type="password" autocomplete="new-password">
+      <button id="setPwBtn" class="btn">設定新密碼</button>
+    </div>
+    <p id="loginErr" class="err"></p>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <div class="top">
+    <div class="seg" id="tabs">
+      <button data-view="today" class="on">今日</button>
+      <button data-view="history">歷史</button>
+    </div>
+    <span id="sync" class="sync"></span>
+  </div>
+  <div id="banner" hidden></div>
+
+  <section id="view-today">
+    <div class="dayrow">
+      <div class="seg" id="dayseg">
+        <button data-off="0" class="on">今天</button>
+        <button data-off="-1">昨天</button>
+      </div>
+      <span id="dateLabel" class="datelabel"></span>
+    </div>
+    <div id="grid" class="grid"></div>
+    <div id="editor" hidden>
+      <div class="row">
+        <strong id="edName"></strong>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <input id="edInput" type="number" inputmode="decimal" min="0" step="any">
+        <span id="edUnit" class="unit"></span>
+      </div>
+      <div id="edErr"></div>
+      <div class="btns">
+        <button id="edSave" class="primary">儲存</button>
+        <button id="edCancel" class="danger" hidden>取消打卡</button>
+        <button id="edClose">關閉</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-history" hidden>
+    <div class="legend">
+      <span><span class="hm"><i class="done"></i></span>完成</span>
+      <span><span class="hm"><i class="partial"></i></span>部分</span>
+      <span><span class="hm"><i class="unknown"></i></span>未知</span>
+      <span><span class="hm"><i></i></span>未做</span>
+    </div>
+    <div id="heatmap"></div>
+  </section>
+
+  <div class="corner"><button id="logoutBtn">登出</button><span id="ver"></span></div>
+</div>
+
+<script type="module">
+import * as L from "./logic.js";
+
+// Must match CACHE in sw.js
+const APP_VERSION = "daily-panel-v1";
+const SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js";
+const CONFIG = { SUPABASE_URL: "https://ewynrebniwbptsnpnjyd.supabase.co", SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3eW5yZWJuaXdicHRzbnBuanlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NzkzNjIsImV4cCI6MjA5OTA1NTM2Mn0.zydrT-q4xwx1lCr0KpaWlZ2z9H0ulf1CuFHsYfY82a0" };
+const RESET_REDIRECT = "https://felixy-111.github.io/daily-panel/";
+const WRITEBACK_URL = CONFIG.SUPABASE_URL + "/functions/v1/notion-writeback";
+const HISTORY_DAYS = 90;
+const LS = { cache: "dp.cache", queue: "dp.queue", wb: "dp.wb" };
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const lsGet = (k, fb) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fb; } catch (e) { return fb; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked: stay in memory */ } };
+const lsDel = (k) => { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } };
+
+let sb = null;
+let loggedIn = false;
+let recovering = false;
+let defs = [], logs = [], statusRows = [];
+let queue = lsGet(LS.queue, []);   // pending panel upserts
+let wbQueue = lsGet(LS.wb, []);    // pending Notion write-backs
+let view = "today", dayOffset = 0, editing = null;
+let lastError = "";
+
+/* ---------- render ---------- */
+function ctxNow() {
+  const status = {};
+  for (const s of statusRows) status[s.source] = s;
+  return { status, now: new Date() };
+}
+const key = (d, h) => d + "|" + h;
+const sortedDefs = () => [...defs].sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+
+function render() {
+  $("ver").textContent = APP_VERSION.replace("daily-panel-", "");
+  const err = L.notionError(statusRows);
+  $("banner").hidden = !err;
+  if (err) {
+    const n = statusRows.find((x) => x.source === "notion");
+    const ids = (n && n.extra && Array.isArray(n.extra.unreachable)) ? n.extra.unreachable : [];
+    const names = ids.map((id) => (defs.find((d) => d.habit_id === id) || {}).name || id);
+    $("banner").textContent = names.length ? `Notion 讀不到：${names.join("、")}（面板打卡照常）` : "Notion 讀取失敗：" + err.replace(/^ERROR:?\s*/, "");
+  }
+  const sync = $("sync");
+  sync.classList.toggle("pending", queue.length > 0);
+  sync.textContent = queue.length ? `待同步 ${queue.length}` : (navigator.onLine ? (lastError ? "同步失敗" : "已同步") : "離線");
+  sync.title = lastError;
+  $("view-today").hidden = view !== "today";
+  $("view-history").hidden = view !== "history";
+  for (const b of $("tabs").children) b.classList.toggle("on", b.dataset.view === view);
+  if (view === "today") renderToday(); else renderHistory();
+}
+
+function renderToday() {
+  const today = L.logicalDay(new Date());
+  const date = L.addDays(today, dayOffset);
+  for (const b of $("dayseg").children) b.classList.toggle("on", Number(b.dataset.off) === dayOffset);
+  const [, m, d] = date.split("-");
+  $("dateLabel").textContent = `${Number(m)}/${Number(d)}`;
+  const index = L.indexLogs(L.applyQueue(logs, queue));
+  const ctx = ctxNow();
+  const pend = new Set(queue.map((q) => key(q.log_date, q.habit_id)));
+  const wbPend = new Set(wbQueue.map((q) => key(q.log_date, q.habit_id)));
+  $("grid").innerHTML = sortedDefs().map((def) => {
+    const s = L.dayState(index, def, date, ctx);
+    const k = key(date, def.habit_id);
+    const unit = def.unit || "";
+    let main = "";
+    if (s.state === "unknown") {
+      main = s.lastSuccess ? `未知・最後更新 ${L.fmtHM(s.lastSuccess)}` : "未知";
+    } else if (s.value !== null && def.target != null && Number(def.target) > 1) {
+      main = `${s.value}<small>/${esc(def.target)}</small>`;
+    } else if (s.value !== null && Number(def.target) !== 1) {
+      main = `${s.value}<small> ${esc(unit)}</small>`;
+    } else if (s.state === "done") {
+      main = "✓";
+    }
+    const tags = [];
+    const auto = s.sources.some((x) => x !== "panel" && x !== "notion");
+    if (!s.panelDone && s.sources.includes("notion")) tags.push(`<span class="tag">N</span>`);
+    if (!s.panelDone && auto) tags.push(`<span class="tag">自動</span>`);
+    if (s.hasPanelRow && !s.panelDone && s.notionDone) tags.push(`<span class="tag">Notion 已勾選</span>`);
+    if (pend.has(k)) tags.push(`<span class="tag warn">待同步</span>`);
+    if (wbPend.has(k)) tags.push(`<span class="tag warn">Notion 未同步</span>`);
+    const subs = [];
+    const wk = L.weeklyProgress(index, def, date);
+    if (wk) subs.push(wk.label);
+    const extra = def.habit_id === "anki" && ctx.status.anki && ctx.status.anki.extra;
+    if (extra && extra.due != null) subs.push(`到期 ${esc(extra.due)}`);
+    return `<button class="cell ${s.state}${editing === def.habit_id ? " editing" : ""}" data-id="${esc(def.habit_id)}" data-cat="${esc(def.category)}">
+      <span class="name">${esc(def.name)}</span>
+      ${subs.length ? `<span class="sub">${subs.join("・")}</span>` : ""}
+      <span class="main">${main}</span>
+      ${tags.length ? `<span class="tags">${tags.join("")}</span>` : ""}
+    </button>`;
+  }).join("");
+}
+
+function renderHistory() {
+  const today = L.logicalDay(new Date());
+  const rows = L.heatmapCells(L.applyQueue(logs, queue), defs, today, 12, ctxNow());
+  const names = Object.fromEntries(defs.map((d) => [d.habit_id, d.name]));
+  $("heatmap").innerHTML = rows.map((r) => `<div class="hm-row">
+    <span class="hm-name">${esc(names[r.habit_id])}</span>
+    <span class="hm">${r.weeks.flat().map((c) => c ? `<i class="${c.state === "none" ? "" : c.state}" title="${c.date}"></i>` : `<i class="empty"></i>`).join("")}</span>
+  </div>`).join("");
+}
+
+/* ---------- check-in ---------- */
+function currentDate() { return L.addDays(L.logicalDay(new Date()), dayOffset); }
+
+function onCellTap(id) {
+  const def = defs.find((d) => d.habit_id === id);
+  if (!def) return;
+  const date = currentDate();
+  if (!L.canEdit(date, L.logicalDay(new Date()))) return;
+  const s = L.dayState(L.indexLogs(L.applyQueue(logs, queue)), def, date, ctxNow());
+  if (L.needsValue(id)) { openEditor(def, s); return; }
+  const isOn = s.state === "done" || s.state === "partial";
+  writePanel(id, date, !isOn, null);
+}
+
+function openEditor(def, s) {
+  editing = def.habit_id;
+  $("edName").textContent = def.name;
+  $("edUnit").textContent = def.unit || "";
+  $("edInput").value = s.value ?? def.target ?? "";
+  $("edErr").textContent = "";
+  $("edCancel").hidden = !(s.state === "done" || s.state === "partial");
+  $("editor").hidden = false;
+  render();
+  $("edInput").focus();
+}
+function closeEditor() { editing = null; $("editor").hidden = true; render(); }
+
+function saveEditor() {
+  const r = L.valueEdit($("edInput").value);
+  if (!r) { $("edErr").textContent = "請輸入 0 以上的數字"; return; }
+  const id = editing;
+  closeEditor();
+  writePanel(id, currentDate(), r.done, r.value);
+}
+function cancelEditor() {
+  const id = editing;
+  closeEditor();
+  writePanel(id, currentDate(), false, null);
+}
+
+// Local first: queue → render → try to upload
+function writePanel(habit_id, log_date, done, value) {
+  queue = L.queuePut(queue, { log_date, habit_id, done, value, updated_at: new Date().toISOString() });
+  lsSet(LS.queue, queue);
+  render();
+  flush();
+}
+
+/* ---------- sync ---------- */
+let flushing = false;
+async function flush() {
+  if (flushing || !sb || !loggedIn || !navigator.onLine) return;
+  flushing = true;
+  try {
+    const items = [...queue];
+    if (items.length) {
+      // Two devices offline: the later write wins, so skip items older than what the server has.
+      const dates = [...new Set(items.map((i) => i.log_date))];
+      const { data: server, error: e1 } = await sb.from("habit_logs")
+        .select("log_date,habit_id,updated_at").eq("source", "panel").in("log_date", dates);
+      if (e1) throw e1;
+      const serverAt = new Map((server || []).map((r) => [key(r.log_date, r.habit_id), new Date(r.updated_at).getTime()]));
+      for (const it of items) {
+        const newer = serverAt.get(key(it.log_date, it.habit_id));
+        if (newer === undefined || newer <= new Date(it.updated_at).getTime()) {
+          const rowOut = { log_date: it.log_date, habit_id: it.habit_id, source: "panel", done: it.done, value: it.value, updated_at: it.updated_at };
+          const { error } = await sb.from("habit_logs").upsert(rowOut, { onConflict: "log_date,habit_id,source" });
+          if (error) throw error;
+          logs = [...logs.filter((r) => !(r.source === "panel" && r.log_date === it.log_date && r.habit_id === it.habit_id)), rowOut];
+          const def = defs.find((d) => d.habit_id === it.habit_id);
+          if (def && def.notion_page_id) {
+            wbQueue = L.queuePut(wbQueue, { log_date: it.log_date, habit_id: it.habit_id, done: it.done, value: it.value, updated_at: it.updated_at });
+            lsSet(LS.wb, wbQueue);
+          }
+        }
+        queue = L.queueDrop(queue, it);
+        lsSet(LS.queue, queue);
+      }
+      saveCache();
+    }
+    lastError = "";
+  } catch (e) {
+    lastError = String((e && e.message) || e);
+    console.warn("sync failed, kept in queue:", lastError);
+  } finally {
+    flushing = false;
+  }
+  render();
+  await flushWriteback();
+}
+
+// Notion write-back never blocks a check-in; failures stay queued and show 「Notion 未同步」.
+let wbRunning = false;
+async function flushWriteback() {
+  if (wbRunning || !wbQueue.length || !sb || !navigator.onLine) return;
+  wbRunning = true;
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) return;
+    for (const it of [...wbQueue]) {
+      try {
+        const res = await fetch(WRITEBACK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token, apikey: CONFIG.SUPABASE_ANON_KEY },
+          body: JSON.stringify({ habit_id: it.habit_id, log_date: it.log_date, done: it.done, value: it.value }),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        wbQueue = L.queueDrop(wbQueue, it);
+        lsSet(LS.wb, wbQueue);
+      } catch (e) {
+        console.warn("notion write-back pending:", it.habit_id, (e && e.message) || e);
+      }
+    }
+  } finally {
+    wbRunning = false;
+    render();
+  }
+}
+
+async function fetchAll(build) {
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await build().range(from, from + 999);
+    if (error) throw error;
+    out.push(...data);
+    if (data.length < 1000) return out;
+  }
+}
+
+let refreshing = false;
+async function refresh() {
+  if (refreshing || !sb || !loggedIn || !navigator.onLine) return;
+  refreshing = true;
+  try {
+    await flush();
+    const since = L.addDays(L.logicalDay(new Date()), -HISTORY_DAYS);
+    const [d, s, l] = await Promise.all([
+      sb.from("habit_defs").select("habit_id,name,category,unit,target,weekly_target,min_value,sort,notion_page_id").order("sort"),
+      sb.from("habit_source_status").select("source,last_success_at,last_attempt_at,message,extra"),
+      fetchAll(() => sb.from("habit_logs").select("log_date,habit_id,source,done,value,updated_at").gte("log_date", since).order("log_date")),
+    ]);
+    if (d.error) throw d.error;
+    if (s.error) throw s.error;
+    defs = d.data; statusRows = s.data; logs = l;
+    lastError = "";
+    saveCache();
+  } catch (e) {
+    lastError = String((e && e.message) || e);
+    console.warn("refresh failed, showing cached data:", lastError);
+  } finally {
+    refreshing = false;
+  }
+  render();
+}
+
+function saveCache() { lsSet(LS.cache, { defs, logs, statusRows }); }
+function loadCache() {
+  const c = lsGet(LS.cache, null);
+  if (!c || !Array.isArray(c.defs) || !c.defs.length) return false;
+  defs = c.defs; logs = c.logs || []; statusRows = c.statusRows || [];
+  return true;
+}
+function hasStoredSession() {
+  try {
+    for (let i = 0; i < localStorage.length; i++) if (/^sb-.*-auth-token$/.test(localStorage.key(i))) return true;
+  } catch (e) { /* ignore */ }
+  return false;
+}
+
+/* ---------- auth (same flow as tutoring/scheduler) ---------- */
+function showApp() { $("login").hidden = true; $("app").hidden = false; render(); }
+function showLogin() { $("app").hidden = true; $("login").hidden = false; }
+
+function loadScript(src) {
+  return new Promise((ok, no) => {
+    const s = document.createElement("script");
+    s.src = src; s.onload = ok; s.onerror = () => no(new Error("SDK 載入失敗"));
+    document.head.appendChild(s);
+  });
+}
+
+async function initCloud() {
+  try {
+    await loadScript(SDK_URL);
+    if (/(^#|&)type=recovery(&|$)/.test(location.hash)) showRecovery();
+    if (/(^#|&)error(_code|_description)?=/.test(location.hash)) {
+      history.replaceState(null, "", location.pathname + location.search);
+      $("loginErr").textContent = "重設連結無效或已過期，請重新點「忘記密碼？」";
+    }
+    sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+    sb.auth.onAuthStateChange((event) => { if (event === "PASSWORD_RECOVERY") showRecovery(); });
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      loggedIn = true;
+      if (!recovering) showApp();
+      await refresh();
+    } else {
+      if (recovering) {
+        exitRecovery();
+        history.replaceState(null, "", location.pathname + location.search);
+        $("loginErr").textContent = "重設連結無效、已過期，或連不上雲端，請重新點「忘記密碼？」";
+      }
+      lsDel(LS.cache);
+      showLogin();
+    }
+  } catch (e) {
+    console.warn(e);
+    if ($("app").hidden) {
+      showLogin();
+      $("loginErr").textContent = "連不上網路，請稍後再試";
+    }
+  }
+}
+
+function loginErrText(e) {
+  const m = (e && e.message) || e;
+  if (/failed to fetch|networkerror|network|load failed/i.test(String(m)))
+    return "連不上雲端資料庫。若網路正常，多半是 Supabase 閒置被暫停：到 supabase.com/dashboard 按 Restore project";
+  return m;
+}
+
+async function doLogin() {
+  const email = $("loginEmail").value.trim();
+  const pw = $("loginPw").value;
+  $("loginErr").textContent = ""; $("loginErr").style.color = "";
+  if (!email || !pw) { $("loginErr").textContent = "請輸入 Email 與密碼"; return; }
+  if (!sb) { $("loginErr").textContent = "雲端還在初始化，請稍候再試"; return; }
+  $("loginBtn").disabled = true;
+  try {
+    const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+    if (error) throw error;
+    loggedIn = true;
+    showApp();
+    await refresh();
+  } catch (e) {
+    $("loginErr").textContent = "登入失敗：" + loginErrText(e);
+  }
+  $("loginBtn").disabled = false;
+}
+
+function showRecovery() {
+  recovering = true;
+  $("loginBox").hidden = true;
+  $("recoverBox").hidden = false;
+  $("loginErr").textContent = ""; $("loginErr").style.color = "";
+  showLogin();
+}
+function exitRecovery() {
+  recovering = false;
+  $("newPw").value = ""; $("newPw2").value = "";
+  $("recoverBox").hidden = true;
+  $("loginBox").hidden = false;
+}
+
+async function doSetPassword() {
+  if ($("setPwBtn").disabled) return;
+  const pw = $("newPw").value, pw2 = $("newPw2").value;
+  $("loginErr").textContent = ""; $("loginErr").style.color = "";
+  if (pw.length < 6) { $("loginErr").textContent = "新密碼至少要 6 個字"; return; }
+  if (pw !== pw2) { $("loginErr").textContent = "兩次輸入的新密碼不一樣"; return; }
+  $("setPwBtn").disabled = true;
+  try {
+    const { error } = await sb.auth.updateUser({ password: pw });
+    if (error) throw error;
+  } catch (e) {
+    $("loginErr").textContent = "設定失敗：" + loginErrText(e);
+    $("setPwBtn").disabled = false;
+    return;
+  }
+  $("setPwBtn").disabled = false;
+  exitRecovery();
+  loggedIn = true;
+  showApp();
+  await refresh();
+}
+
+async function doForgot() {
+  const email = $("loginEmail").value.trim();
+  $("loginErr").textContent = ""; $("loginErr").style.color = "";
+  if (!email) { $("loginErr").textContent = "請先在上面輸入 Email，再點忘記密碼"; return; }
+  if (!sb) { $("loginErr").textContent = "雲端還在初始化，請稍候再試"; return; }
+  $("forgotBtn").disabled = true;
+  try {
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: RESET_REDIRECT });
+    if (error) throw error;
+    $("loginErr").style.color = "var(--green)";
+    $("loginErr").textContent = "重設信已寄出，點信裡的連結後會請你設定新密碼";
+  } catch (e) {
+    $("loginErr").textContent = "寄送失敗：" + loginErrText(e);
+  }
+  $("forgotBtn").disabled = false;
+}
+
+async function doLogout() {
+  if (sb) await sb.auth.signOut();
+  loggedIn = false;
+  defs = []; logs = []; statusRows = [];
+  lsDel(LS.cache);
+  showLogin();
+}
+
+/* ---------- boot ---------- */
+$("loginBtn").addEventListener("click", doLogin);
+$("loginPw").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+$("forgotBtn").addEventListener("click", doForgot);
+$("setPwBtn").addEventListener("click", doSetPassword);
+$("newPw2").addEventListener("keydown", (e) => { if (e.key === "Enter") doSetPassword(); });
+$("logoutBtn").addEventListener("click", doLogout);
+$("tabs").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  view = b.dataset.view; if (editing) closeEditor(); else render();
+});
+$("dayseg").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  dayOffset = Number(b.dataset.off); if (editing) closeEditor(); else render();
+});
+$("grid").addEventListener("click", (e) => {
+  const c = e.target.closest(".cell"); if (c) onCellTap(c.dataset.id);
+});
+$("edSave").addEventListener("click", saveEditor);
+$("edInput").addEventListener("keydown", (e) => { if (e.key === "Enter") saveEditor(); });
+$("edCancel").addEventListener("click", cancelEditor);
+$("edClose").addEventListener("click", closeEditor);
+window.addEventListener("online", () => refresh());
+window.addEventListener("offline", render);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { render(); refresh(); } });
+setInterval(() => { if (!$("app").hidden && !editing) render(); }, 60000);
+
+// Cached data first (only when a login session is stored), then the network.
+if (hasStoredSession() && loadCache()) showApp();
+initCloud();
+
+if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));
+}
+</script>
+</body>
+</html>

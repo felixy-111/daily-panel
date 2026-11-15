@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Install (manual, not done by the build):
+     cp com.felix.habit-collector.plist ~/Library/LaunchAgents/
+     launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.felix.habit-collector.plist
+     Uses homebrew python3 (system python lacks TCC file access under launchd). -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.felix.habit-collector</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/Users/billyyang/projects/felix_agent/habits/dashboard/collector/mac_collector.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/billyyang/projects/felix_agent/habits/dashboard/collector</string>
+    <key>StartInterval</key>
+    <integer>1800</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/billyyang/Library/Logs/habit-collector.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/billyyang/Library/Logs/habit-collector.log</string>
+</dict>
+</plist>

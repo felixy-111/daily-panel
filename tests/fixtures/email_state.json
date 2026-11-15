@@ -1,0 +1,7 @@
+{"version": 1, "started_on": "2026-11-10", "current_day": 6,
+ "completed_days": [
+  {"day": 1, "scenario_id": "sc-a", "completed_at": "2026-11-20T00:40+08:00", "weak_tags": []},
+  {"day": 2, "scenario_id": "sc-b", "completed_at": "2026-11-20T08:20+08:00", "weak_tags": []},
+  {"day": 3, "scenario_id": "sc-c", "completed_at": "2026-11-21T07:59+08:00", "weak_tags": []},
+  {"day": 0, "scenario_id": "sc-z", "completed_at": "2026-11-12T09:00+08:00", "weak_tags": []}
+ ]}

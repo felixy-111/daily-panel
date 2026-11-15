@@ -1,0 +1,8 @@
+[
+ {"source_id": "test_zoo", "text": "fixture", "pronunciation": 50.0, "phonemes": [], "date": "2026-11-20"},
+ {"source_id": "test_zoo", "text": "fixture", "pronunciation": 50.0, "phonemes": [], "date": "2026-11-19"},
+ {"source_id": "yt_abc", "text": "fixture", "pronunciation": 80.0, "phonemes": [], "date": "2026-11-20"},
+ {"source_id": "yt_abc", "text": "fixture", "pronunciation": 81.0, "phonemes": [], "date": "2026-11-20"},
+ {"source_id": "yt_def", "text": "fixture", "pronunciation": 70.0, "phonemes": [], "date": "2026-11-18"},
+ {"source_id": "yt_old", "text": "fixture", "pronunciation": 70.0, "phonemes": [], "date": "2026-11-10"}
+]
