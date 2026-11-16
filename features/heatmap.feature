@@ -22,7 +22,3 @@ Feature: 熱力圖
 
   Scenario: 歷史畫面只有熱力圖
     Then 歷史畫面除了熱力圖沒有其他圖表
-
-  @later
-  Scenario: 趨勢圖（後續，MVP 不做）
-    Then 近 8 週每週完成項次的折線圖

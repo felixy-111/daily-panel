@@ -24,6 +24,10 @@ create table if not exists habit_defs (
   updated_at     timestamptz not null default now()
 );
 
+-- Long-press a cell opens this link (https:// or an app link such as anki://). null = nothing.
+-- Values are set by seed_open_url.local.sql (not committed).
+alter table habit_defs add column if not exists open_url text;
+
 create table if not exists habit_logs (
   log_date   date not null,                  -- logical day (Asia/Taipei, 04:00 boundary)
   habit_id   text not null references habit_defs(habit_id),

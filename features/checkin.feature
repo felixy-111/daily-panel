@@ -58,3 +58,42 @@ Feature: 一鍵打卡
     Given 手機與 Mac 都離線改了今天的 m1
     When 兩邊都上線同步
     Then 較晚寫入的那筆為準
+
+  Scenario: 登出前有未同步資料先確認
+    Given 本機還有沒送出的打卡、Notion 寫回或收件匣文字
+    When 我按登出
+    Then 頁面內出現確認（不是瀏覽器彈窗），寫明有幾筆會消失
+    When 我選「先不登出」
+    Then 留在面板，資料都還在
+    When 我再按登出並選「仍要登出」
+    Then 回到登入畫面，本機佇列清空
+
+  Scenario: 沒有未同步資料直接登出
+    Given 本機沒有待送資料
+    When 我按登出
+    Then 直接回到登入畫面，不出現確認
+
+  Scenario: 長按格子開對應工具
+    Given shadowing 在 habit_defs 設了 open_url
+    When 我按住 shadowing 格 0.5 秒以上再放開
+    Then 開啟 open_url 指向的工具
+    And shadowing 的打卡狀態沒有改變
+
+  Scenario: 長按不影響一般點擊
+    When 我快速點一下 shadowing 格
+    Then 照常打卡或取消，不會開啟工具
+
+  Scenario: 沒設網址的格子長按沒反應
+    Given email 的 open_url 是空的
+    When 我按住 email 格 0.5 秒以上再放開
+    Then 沒有開啟任何東西，打卡狀態也沒有改變
+
+  Scenario: 只開安全的網址
+    Given 某格的 open_url 不是 https:// 或白名單內的 App 連結
+    When 我長按該格
+    Then 沒有開啟任何東西
+
+  Scenario: 資料庫還沒加 open_url 欄位
+    Given habit_defs 還沒有 open_url 欄位
+    When 我打開面板
+    Then 九格照常顯示、點擊照常打卡

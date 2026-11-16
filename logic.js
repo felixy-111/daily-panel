@@ -211,3 +211,58 @@ export function notionError(statusRows) {
   const n = (statusRows || []).find((s) => s.source === "notion");
   return n && typeof n.message === "string" && n.message.startsWith("ERROR") ? n.message : null;
 }
+
+// --- inbox drop slot ---
+export const DUMP_MAX = 500; // characters (code points); inbox-capture enforces the same limit
+
+// One line of text for the inbox: control characters and runs of whitespace become one space.
+// Returns { ok: true, text } or { ok: false, reason: "empty" | "too_long", length }.
+export function dumpText(input) {
+  // deno-lint-ignore no-control-regex
+  const text = String(input ?? "").replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim();
+  const length = [...text].length;
+  if (length === 0) return { ok: false, reason: "empty", length };
+  if (length > DUMP_MAX) return { ok: false, reason: "too_long", length };
+  return { ok: true, text };
+}
+
+// Offline queue of texts waiting for the inbox, oldest first. Unlike check-ins, every item is kept.
+export function dumpPut(queue, text, now = new Date()) {
+  return [...queue, { text, at: now.toISOString() }];
+}
+
+export function dumpDrop(queue, item) {
+  return queue.filter((q) => !(q.at === item.at && q.text === item.text));
+}
+
+// What a logout would throw away. null when nothing is pending.
+export function unsyncedSummary(queue, wbQueue, dumpQueue) {
+  const parts = [];
+  if (queue.length) parts.push(`打卡 ${queue.length}`);
+  if (wbQueue.length) parts.push(`Notion 寫回 ${wbQueue.length}`);
+  if (dumpQueue.length) parts.push(`收件匣 ${dumpQueue.length}`);
+  if (!parts.length) return null;
+  return { total: queue.length + wbQueue.length + dumpQueue.length, label: parts.join("、") };
+}
+
+// --- long-press opens a habit's tool ---
+export const LONG_PRESS_MS = 500;
+const LONG_PRESS_SLOP = 10; // px the finger may drift
+
+export function isLongPress(downAt, upAt, movedPx = 0) {
+  return upAt - downAt >= LONG_PRESS_MS && movedPx <= LONG_PRESS_SLOP;
+}
+
+// habit_defs.open_url ends up in a link the panel opens, so only an allow-list of schemes
+// gets through (never javascript:, data:, …). Returns the normalised URL or null.
+const OPEN_SCHEMES = ["https:", "anki:", "notion:"];
+export function safeOpenUrl(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  let u;
+  try {
+    u = new URL(raw.trim());
+  } catch (_e) {
+    return null;
+  }
+  return OPEN_SCHEMES.includes(u.protocol) ? u.href : null;
+}

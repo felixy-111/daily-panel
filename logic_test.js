@@ -3,15 +3,21 @@ import {
   applyQueue,
   canEdit,
   dayEnd,
+  dumpDrop,
+  dumpPut,
+  dumpText,
   fmtHM,
   heatmapCells,
   indexLogs,
+  isLongPress,
   isoWeekStart,
   logicalDay,
   mergeDay,
   notionError,
   queueDrop,
   queuePut,
+  safeOpenUrl,
+  unsyncedSummary,
   valueEdit,
   weeklyProgress,
 } from "./logic.js";
@@ -254,4 +260,67 @@ Deno.test("unreachable + collector down 3 days: older days unknown like reachabl
   const unknownDays = (r) => r.weeks.flat().filter((c) => c && c.state === "unknown").map((c) => c.date);
   eq(unknownDays(rows[0]), ["2026-11-18", "2026-11-19", "2026-11-20", "2026-11-21"]);
   eq(unknownDays(rows[0]), unknownDays(rows[1]));
+});
+
+// --- inbox drop slot ---
+Deno.test("dump text: trimmed, blank is not sent", () => {
+  eq(dumpText("  買牛奶  "), { ok: true, text: "買牛奶" });
+  eq(dumpText(""), { ok: false, reason: "empty", length: 0 });
+  eq(dumpText("   \n\t "), { ok: false, reason: "empty", length: 0 });
+  eq(dumpText(null), { ok: false, reason: "empty", length: 0 });
+});
+Deno.test("dump text: always one line, control characters removed", () => {
+  eq(dumpText("a\nb\r\n\tc"), { ok: true, text: "a b c" });
+  eq(dumpText("a\u0000b\u0007c\u007Fd"), { ok: true, text: "a b c d" });
+  eq(dumpText("a   b"), { ok: true, text: "a b" });
+});
+Deno.test("dump text: 500 characters allowed, 501 blocked (counted as characters, not UTF-16 units)", () => {
+  eq(dumpText("字".repeat(500)).ok, true);
+  eq(dumpText("字".repeat(501)), { ok: false, reason: "too_long", length: 501 });
+  eq(dumpText("😀".repeat(500)).ok, true);
+  eq(dumpText("😀".repeat(501)).reason, "too_long");
+  eq(dumpText(" " + "a".repeat(500) + " ").ok, true); // limit applies after trimming
+});
+Deno.test("dump queue: keeps every item in order, drop removes only that item", () => {
+  const t1 = new Date("2026-11-16T01:00:00Z"), t2 = new Date("2026-11-16T01:00:05Z");
+  let q = dumpPut([], "a", t1);
+  q = dumpPut(q, "a", t2); // same text twice is two items
+  q = dumpPut(q, "b", t2);
+  eq(q, [
+    { text: "a", at: "2026-11-16T01:00:00.000Z" },
+    { text: "a", at: "2026-11-16T01:00:05.000Z" },
+    { text: "b", at: "2026-11-16T01:00:05.000Z" },
+  ]);
+  eq(dumpDrop(q, q[1]).map((x) => x.text + x.at.slice(17, 19)), ["a00", "b05"]);
+  eq(dumpDrop(q, { text: "zzz", at: q[0].at }).length, 3);
+  const before = [...q];
+  dumpPut(q, "c");
+  eq(q, before, "input queue not mutated");
+});
+Deno.test("logout warning: counts everything that would be lost", () => {
+  eq(unsyncedSummary([], [], []), null);
+  eq(unsyncedSummary([1], [], []), { total: 1, label: "打卡 1" });
+  eq(unsyncedSummary([1, 2], [1], [1, 2, 3]), { total: 6, label: "打卡 2、Notion 寫回 1、收件匣 3" });
+  eq(unsyncedSummary([], [], [1]), { total: 1, label: "收件匣 1" });
+});
+
+// --- long-press opens a habit's tool ---
+Deno.test("long-press: 500ms hold without drifting", () => {
+  eq(isLongPress(1000, 1499), false);
+  eq(isLongPress(1000, 1500), true);
+  eq(isLongPress(1000, 3000, 10), true);
+  eq(isLongPress(1000, 3000, 11), false); // finger moved: a scroll, not a press
+});
+Deno.test("open url: https and app links only", () => {
+  eq(safeOpenUrl("https://example.com/a?b=1"), "https://example.com/a?b=1");
+  eq(safeOpenUrl("  https://example.com  "), "https://example.com/");
+  eq(safeOpenUrl("anki://"), "anki://");
+  eq(safeOpenUrl("notion://www.notion.so/abc"), "notion://www.notion.so/abc");
+});
+Deno.test("open url: script and other schemes are refused", () => {
+  for (const bad of [
+    "javascript:alert(1)", " JavaScript:alert(1)", "java\tscript:alert(1)", "data:text/html,<script>1</script>",
+    "vbscript:x", "file:///etc/passwd", "blob:https://example.com/x", "http://example.com", "//example.com",
+    "/relative", "example.com", "", "   ", null, undefined, 5, {},
+  ]) eq(safeOpenUrl(bad), null, String(bad));
 });
