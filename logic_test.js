@@ -316,6 +316,7 @@ Deno.test("open url: https and app links only", () => {
   eq(safeOpenUrl("  https://example.com  "), "https://example.com/");
   eq(safeOpenUrl("anki://"), "anki://");
   eq(safeOpenUrl("notion://www.notion.so/abc"), "notion://www.notion.so/abc");
+  eq(safeOpenUrl("x-safari-https://example.com/"), "x-safari-https://example.com/");
 });
 Deno.test("open url: script and other schemes are refused", () => {
   for (const bad of [

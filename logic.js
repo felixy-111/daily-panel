@@ -255,7 +255,7 @@ export function isLongPress(downAt, upAt, movedPx = 0) {
 
 // habit_defs.open_url ends up in a link the panel opens, so only an allow-list of schemes
 // gets through (never javascript:, data:, …). Returns the normalised URL or null.
-const OPEN_SCHEMES = ["https:", "anki:", "notion:"];
+const OPEN_SCHEMES = ["https:", "anki:", "notion:", "x-safari-https:"];
 export function safeOpenUrl(raw) {
   if (typeof raw !== "string" || !raw.trim()) return null;
   let u;
