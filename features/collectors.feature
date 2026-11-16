@@ -49,9 +49,9 @@ Feature: 自動收集
     And 批改在 2026-11-21 00:40 完成
     Then email 記到 2026-11-20
 
-  Scenario: Anki 另顯示到期數
+  Scenario: Anki 不顯示到期數（2026-11-16 拿掉：門檻只是複習 1 張，大數字勸退）
     Given anki 的 habit_source_status extra 有到期張數
-    Then anki 格顯示到期張數
+    Then anki 格不顯示到期張數
 
   Scenario: Notion 英文任務不接
     When 我在 Notion 勾 Podcast Shadowing 任務

@@ -1,6 +1,6 @@
 // Offline cache for the daily panel. Bump CACHE on every release (old caches are removed).
 // Only caches named "daily-panel-*" are touched: GitHub Pages shares one origin with other apps.
-const CACHE = "daily-panel-v5";
+const CACHE = "daily-panel-v6";
 const SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js";
 const ASSETS = [
   "./", "./index.html", "./logic.js", "./manifest.webmanifest",
