@@ -6,6 +6,7 @@ independent; a failing source writes an ERROR status and no rows.
 Usage: mac_collector.py [--dry-run]
 """
 import json
+import subprocess
 import sys
 from collections import Counter
 from datetime import datetime, timezone
@@ -18,6 +19,8 @@ PRONOUNCE_LOG = SHADOWING_DIR / "pronounce_log.json"
 MEETING_STATE = SHADOWING_DIR / "meeting_coach_state.json"
 ANKICONNECT = "http://127.0.0.1:8765"
 WINDOW_DAYS = 14
+GH = "/opt/homebrew/bin/gh"
+CLOUD_REPO = "felixy-111/daily-panel"
 EXCLUDED_SOURCE_IDS = {"test_zoo"}
 
 
@@ -93,13 +96,27 @@ def run(db, now=None, sources=SOURCES):
     return write_failures
 
 
+def trigger_cloud():
+    """GitHub's */15 schedule never fired for this repo, so nudge the cloud collector
+    (Email Coach + Notion) from here. Best effort: a failure only logs."""
+    try:
+        r = subprocess.run([GH, "workflow", "run", "collect.yml", "-R", CLOUD_REPO],
+                           capture_output=True, text=True, timeout=60)
+        print("cloud trigger:", "OK" if r.returncode == 0 else f"FAILED rc={r.returncode}")
+    except Exception as e:  # noqa: BLE001
+        print("cloud trigger: FAILED", type(e).__name__)
+
+
 def main():
     dry_run = "--dry-run" in sys.argv[1:]
     common.load_env()
     db = common.supabase_from_env(dry_run=dry_run)
     print(f"habit mac collector {datetime.now(common.TPE).isoformat(timespec='seconds')}"
           + (" (dry-run)" if dry_run else ""))
-    sys.exit(1 if run(db) else 0)
+    failed = run(db)
+    if not dry_run:
+        trigger_cloud()
+    sys.exit(1 if failed else 0)
 
 
 if __name__ == "__main__":
