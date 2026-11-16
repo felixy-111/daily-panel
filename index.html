@@ -208,7 +208,7 @@
 import * as L from "./logic.js";
 
 // Must match CACHE in sw.js
-const APP_VERSION = "daily-panel-v3";
+const APP_VERSION = "daily-panel-v4";
 const SDK_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js";
 const CONFIG = { SUPABASE_URL: "https://ewynrebniwbptsnpnjyd.supabase.co", SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3eW5yZWJuaXdicHRzbnBuanlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NzkzNjIsImV4cCI6MjA5OTA1NTM2Mn0.zydrT-q4xwx1lCr0KpaWlZ2z9H0ulf1CuFHsYfY82a0" };
 const RESET_REDIRECT = "https://felixy-111.github.io/daily-panel/";
@@ -454,6 +454,10 @@ function toolUrl(id) {
   return def ? L.safeOpenUrl(def.open_url) : null;
 }
 function openTool(url) {
+  // iOS home-screen app: a new tab opened from a long-press release is silently blocked,
+  // so navigate this window instead (iOS shows the site with a "Done" button back here).
+  const standalone = navigator.standalone || matchMedia("(display-mode: standalone)").matches;
+  if (standalone && url.startsWith("https:")) { location.assign(url); return; }
   const a = document.createElement("a");
   a.href = url;
   a.rel = "noopener noreferrer";
